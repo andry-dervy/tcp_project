@@ -2,39 +2,20 @@
 
 namespace tcp_client {
 
-tcp_client::tcp_client(std::shared_ptr<logger::logger> logger, io_context_t& io_context)
-    : logger::logable(logger), io_context_(io_context), socket_(io_context)
-{
+tcp_client::tcp_client(std::shared_ptr<logger::logger> logger)
+    : logger::logable(logger)
+{}
 
+void tcp_client::start()
+{
+    std::cout << "Start thread ios." << std::endl;
+    get_ios().run();
+    std::cout << "Stop thread ios." << std::endl;
 }
 
-void tcp_client::connect()
+void tcp_client::stop()
 {
-    endpoint_t endpoint(
-        boost::asio::ip::address::from_string(address_), port_);
-
-    socket_.connect(endpoint);
-}
-
-void tcp_client::connect(std::string address, int port)
-{
-    address_ = address;
-    port_ = port;
-
-    connect();
-}
-
-void tcp_client::write(std::string req)
-{
-    socket_.write_some(boost::asio::buffer(req));
-}
-
-std::string tcp_client::read(boost::system::error_code& error)
-{
-    std::array<char, 128> buf;
-    size_t len = socket_.read_some(boost::asio::buffer(buf), error);
-    if(len != 0) return std::string(buf.begin(),buf.begin()+len);
-    return std::string();
+    if(!get_ios().stopped())get_ios().stop();
 }
 
 } // namespace tcp_client

@@ -11,11 +11,9 @@ void run_client(std::string address, int port)
 {
     auto log = std::make_shared<logger::logger>(std::cout);
 
-    tcp_client::io_context_t io_context;
-
     auto ui_client = std::make_unique<ui::ui_cli_client>(log, std::cin, std::cout);
 
-    auto client = std::make_unique<tcp_client::tcp_client>(log, io_context);
+    auto client = std::make_unique<tcp_client::tcp_client>(log);
     client->set_address(address);
     client->set_port(port);
     ui_client->set_tcp_client(std::move(client));
