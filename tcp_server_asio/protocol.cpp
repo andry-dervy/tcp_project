@@ -3,6 +3,20 @@
 
 namespace protocol
 {
+
+std::shared_ptr<protocol> create_command_line_protocol(std::shared_ptr<tcp_server::tcp_server>& srv,
+                                                       std::shared_ptr<app::file_manager_app>& app)
+{
+    auto prtcl = std::make_shared<command_line_protocol>(srv->get_logger());
+    prtcl->set_application(app);
+
+    prtcl->add_command(std::make_unique<exit_command>(srv, srv->get_logger()));
+    prtcl->add_command(std::make_unique<help_command>(srv->get_logger()));
+    prtcl->add_command(std::make_unique<get_files_command>(*app,srv->get_logger()));
+
+    return std::move(prtcl);
+}
+
 //---------------------------------------------------------------
 namespace
 {
@@ -77,9 +91,27 @@ eCodeError exit_command::execute(std::weak_ptr<tcp_server::tcp_connection> conne
     return eCodeError::Ok;
 }
 
-//---------------------------------------------------------------
+get_files_command::~get_files_command() {}
 
-protocol::~protocol() {}
+eCodeError get_files_command::execute(std::weak_ptr<tcp_server::tcp_connection> connection, std::vector<std::string>& command_line)
+{
+    if(command_line.size() == 0) return eCodeError::CommandLineIsEmpty;
+
+    if(command_line[0] != get_key_word()) return eCodeError::KeyWordIsNotFound;
+
+    auto con = connection.lock();
+    if(con == nullptr) return eCodeError::FailedCheck;
+
+    auto files = app_.get_files("");
+    std::string resp;
+    for(auto& f : files) resp += f;
+
+    con->send(std::move(resp));
+
+    return eCodeError::Ok;
+}
+
+//---------------------------------------------------------------
 
 void protocol::add_command(std::unique_ptr<command>&& com)
 {
@@ -128,51 +160,6 @@ bool command_line_protocol::recieve(std::shared_ptr<tcp_server::tcp_connection> 
     context_->set_state(std::make_unique<splitting_into_tokens_state>());
 
     while(context_->handle());
-
-
-//    std::stringstream lg;
-//    lg << "Command_line_protocol recieve " << data.size() << " bytes.";
-//    log(lg.str()); lg.clear();
-
-//    std::string cl{data.begin(),data.end()};
-//    auto lexes = split(cl);
-
-//    if(lexes.size() == 0)
-//    {
-//        lg << "Command line is empty.";
-//        log(lg.str()); lg.clear();
-//        return false;
-//    }
-
-//    eCodeError code_error = eCodeError::Ok;
-
-//    auto it = command_map_.find(lexes[0]);
-//    if(it == command_map_.end())
-//    {
-//        lg << "Key word is not found.";
-//        log(lg.str()); lg.clear();
-//        code_error = eCodeError::KeyWordIsNotFound;
-//    }
-//    else
-//        code_error = it->second->execute(connection, lexes);
-
-//    if(code_error != eCodeError::Ok)
-//    {
-//        auto opt = mes_error(code_error);
-//        if(opt.has_value())
-//        {
-//            lg << *opt;
-//            log(lg.str()); lg.clear();
-
-//            connection->send(*opt);
-//        }
-//        else
-//        {
-//            std::stringstream lg;
-//            lg << "Error command_line_protocol: " << static_cast<int>(code_error);
-//            log(lg.str());
-//        }
-//    }
 
     return true;
 }
@@ -251,6 +238,7 @@ bool command_execute_state::handle(command_line_protocol_context& context)
     }
     return false;
 }
+
 
 
 

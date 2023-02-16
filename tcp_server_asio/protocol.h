@@ -5,8 +5,11 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <optional>
+#include "boost/asio.hpp"
 #include "types.h"
 #include "../logger/logger.h"
+#include "application.h"
 
 namespace tcp_server {
 class tcp_server;
@@ -58,28 +61,66 @@ private:
     std::weak_ptr<tcp_server::tcp_server> tcp_srv_;
 };
 
+class get_files_command: public command
+{
+public:
+    get_files_command(app::file_manager_app& appl, std::shared_ptr<logger::logger> logger_)
+        : command(logger_, "getfiles"), app_(appl) {}
+    ~get_files_command() override;
+    eCodeError execute(std::weak_ptr<tcp_server::tcp_connection> connection,
+                 std::vector<std::string>& command_line) override;
+
+private:
+    app::file_manager_app& app_;
+};
+
 struct message
 {
-    ui16 code;
-    ui32 length;
-    std::vector<char> data;
+    ui16 code_;
+    ui32 length_;
+    std::vector<char> data_;
+
+    std::vector<char> to_sequence() {
+        std::vector<char> vout(sizeof(code_) + sizeof(length_) + data_.size());
+
+        ui16 code;
+        code.vUI16 = htons(code_.vUI16);
+        ui32 length;
+        length.vUI32 = htonl(length_.vUI32);
+
+        size_t i {0};
+        vout[i++] = code.b1;
+        vout[i++] = code.b2;
+        vout[i++] = length.b1;
+        vout[i++] = length.b2;
+        vout[i++] = length.b3;
+        vout[i++] = length.b4;
+
+        vout.insert(vout.begin() + i, data_.begin(), data_.end());
+        return vout;
+    }
 };
 
 enum class eTypeProtocol
 {
-    CommandLine, FileRequest, FileTransmit,
+    NoProtocol, CommandLine, Request, FileRequest, FileTransmit,
 };
 
-class protocol
+class protocol_base
+{
+public:
+    virtual ~protocol_base() = default;
+    virtual bool recieve(std::shared_ptr<tcp_server::tcp_connection> connection,
+                         std::vector<char>&& data) = 0;
+};
+
+class protocol: public protocol_base
 {
 protected:
     std::map<std::string,std::unique_ptr<command>> command_map_;
     eTypeProtocol type_protocol;
 public:
     eTypeProtocol get_type_protocol() const {return type_protocol;}
-    virtual ~protocol();
-    virtual bool recieve(std::shared_ptr<tcp_server::tcp_connection> connection,
-                         std::vector<char>&& data) = 0;
 
     void add_command(std::unique_ptr<command>&& com);
     void del_command(std::string key);
@@ -136,6 +177,7 @@ public:
     command_line_protocol(std::shared_ptr<logger::logger> logger);
     command_line_protocol();
     ~command_line_protocol() override;
+    void set_application(std::shared_ptr<app::file_manager_app>& app) {app_ = app;}
 
     bool recieve(std::shared_ptr<tcp_server::tcp_connection> connection,
                  std::vector<char>&& data) override;
@@ -143,6 +185,10 @@ public:
 private:
     std::map<eCodeError, std::string> map_message_error_;
     void set_map_message_error();
+    std::shared_ptr<app::file_manager_app> app_;
 };
+
+std::shared_ptr<protocol> create_command_line_protocol(std::shared_ptr<tcp_server::tcp_server>& srv,
+                                                       std::shared_ptr<app::file_manager_app>& app);
 
 } // namespace tcp_server

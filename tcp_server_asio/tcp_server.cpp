@@ -82,6 +82,7 @@ tcp_server::tcp_server(std::shared_ptr<logger::logger> log, io_context_t& io_con
     , acceptor_(io_context,
                 endpoint_t(boost::asio::ip::make_address("127.0.0.1"),
                                         13000))
+    , type_protocol_(protocol::eTypeProtocol::NoProtocol)
 {
     start_accept();
 }
@@ -97,9 +98,10 @@ tcp_server::tcp_server(std::shared_ptr<logger::logger> log, io_context_t& io_con
     start_accept();
 }
 
-void tcp_server::add_protocol(std::unique_ptr<protocol::protocol>&& protocol)
+void tcp_server::add_protocol(std::shared_ptr<protocol::protocol>&& protocol)
 {
-    protocols_.insert({protocol->get_type_protocol(),std::move(protocol)});
+    type_protocol_ = protocol->get_type_protocol();
+    protocols_.insert({type_protocol_,std::move(protocol)});
 }
 
 bool tcp_server::erase_connection(std::shared_ptr<tcp_connection> connection)
@@ -125,13 +127,15 @@ void tcp_server::start_accept()
             if (!ec)
             {
                 auto connection = std::make_shared<tcp_connection>(std::move(socket),
-                                                                   protocols_);
+                                                                   protocols_,
+                                                                   type_protocol_);
+                log("make_shared<tcp_connection>");
                 connection->start();
                 connections_.emplace_back(connection);
             }
 
             start_accept();
-        });
+    });
 }
 
 } // namespace tcp_server

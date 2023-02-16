@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "boost/asio.hpp"
 #include "tcp_client.h"
 #include "boost/program_options.hpp"
@@ -9,16 +10,34 @@ namespace opt = boost::program_options;
 
 void run_client(std::string address, int port)
 {
-    auto log = std::make_shared<logger::logger>(std::cout);
+    auto os = std::ofstream("log_error.txt", std::ios_base::out);
+    std::shared_ptr<logger::logger> log;
 
-    auto ui_client = std::make_unique<ui::ui_cli_client>(log, std::cin, std::cout);
+    if(!os)
+    {
+        log = std::make_shared<logger::logger>(std::cout);
+    }
+    else
+    {
+        log = std::make_shared<logger::logger>(os);
+    }
 
-    auto client = std::make_unique<tcp_client::tcp_client>(log);
-    client->set_address(address);
-    client->set_port(port);
-    ui_client->set_tcp_client(std::move(client));
+    try
+    {
+        auto ui_client = std::make_unique<user::ui_cli_client>(log, std::cin, std::cout);
 
-    ui_client->start();
+        auto client = std::make_unique<tcp_client::tcp_client>(log);
+        client->set_address(address);
+        client->set_port(port);
+        ui_client->set_tcp_client(std::move(client));
+
+        ui_client->start();
+    }
+    catch (std::exception& e)
+    {
+        log->log(e.what());
+        os.close();
+    }
 }
 
 int main(int argc, char* argv[])

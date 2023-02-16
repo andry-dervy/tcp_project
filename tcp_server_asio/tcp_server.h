@@ -20,7 +20,16 @@ class tcp_connection
 {
 public:
     tcp_connection(socket_t socket,
-                   std::map<protocol::eTypeProtocol,std::unique_ptr<protocol::protocol>>& protocols)
+                   std::map<protocol::eTypeProtocol,std::shared_ptr<protocol::protocol>>& protocols,
+                   protocol::eTypeProtocol type_protocol = protocol::eTypeProtocol::CommandLine)
+        : socket_(std::move(socket))
+        , protocols_(protocols)
+        , current_type_protocol_(type_protocol)
+        , data_out_(max_length)
+        , data_in_(max_length)
+    {}
+    tcp_connection(socket_t socket,
+                   std::map<protocol::eTypeProtocol,std::shared_ptr<protocol::protocol>>& protocols)
         : socket_(std::move(socket))
         , protocols_(protocols)
         , current_type_protocol_(protocol::eTypeProtocol::CommandLine)
@@ -43,7 +52,7 @@ public:
 
 private:
     socket_t socket_;
-    std::map<protocol::eTypeProtocol,std::unique_ptr<protocol::protocol>>& protocols_;
+    std::map<protocol::eTypeProtocol,std::shared_ptr<protocol::protocol>> protocols_;
     protocol::eTypeProtocol current_type_protocol_;
 
     enum { max_length = 1024 };
@@ -59,7 +68,7 @@ public:
     tcp_server(std::shared_ptr<logger::logger> logger, io_context_t& io_context);
     tcp_server(std::shared_ptr<logger::logger> logger, io_context_t& io_context, std::string address, int port);
 
-    void add_protocol(std::unique_ptr<protocol::protocol>&& protocol);
+    void add_protocol(std::shared_ptr<protocol::protocol>&& protocol);
 
     bool erase_connection(std::shared_ptr<tcp_connection> connection);
 private:
@@ -69,7 +78,8 @@ private:
     acceptor_t acceptor_;
 
     std::deque<std::shared_ptr<tcp_connection>> connections_;
-    std::map<protocol::eTypeProtocol,std::unique_ptr<protocol::protocol>> protocols_;
+    std::map<protocol::eTypeProtocol,std::shared_ptr<protocol::protocol>> protocols_;
+    protocol::eTypeProtocol type_protocol_;
 };
 
 } // namespace tcp_server

@@ -2,55 +2,72 @@
 
 #include <iostream>
 #include <memory>
+#include <queue>
 #include <thread>
 #include "../logger/logger.h"
+#include "user_client.h"
 #include "tcp_client.h"
+#include "request.h"
 
-namespace ui {
+namespace user {
 
-class request_callback
+class user_client;
+
+class command
 {
 public:
-    virtual ~request_callback();
-
-    virtual tcp_client::connection_ptr&& on_send(tcp_client::connection_ptr&& c) const = 0;
-    virtual tcp_client::connection_ptr&& on_read(tcp_client::connection_ptr&& c) const = 0;
+    virtual ~command();
+    virtual void execute() = 0;
 };
 
-class universe_request_callback: public request_callback
+class exit_command: public command
 {
 public:
-    ~universe_request_callback() override;
-    universe_request_callback(std::ostream& out) : out_(out) {}
-    tcp_client::connection_ptr&& on_send(tcp_client::connection_ptr&& c) const override;
-    tcp_client::connection_ptr&& on_read(tcp_client::connection_ptr&& c) const override;
+    exit_command(user_client& ui) : ui_(ui) {}
+    void execute() override;
+private:
+    user_client& ui_;
+};
+
+class prev_cl_command: public command
+{
+public:
+    prev_cl_command(std::ostream& out, std::string cl) : out_(out), cl_(cl) {}
+    void execute() override;
 private:
     std::ostream& out_;
+    std::string cl_;
 };
 
-class ui_client
-{
-public:
-    virtual ~ui_client();
-
-    void set_tcp_client(std::unique_ptr<tcp_client::tcp_client>&& client) {client_ = std::move(client);}
-
-    virtual void start() = 0;
-protected:
-    std::unique_ptr<tcp_client::tcp_client> client_;
-};
-
-class ui_cli_client: public ui_client, public logger::logable
+class ui_cli_client: public user_client
 {
 public:
     ui_cli_client(std::shared_ptr<logger::logger> logger, std::istream& in, std::ostream& out);
     ~ui_cli_client() override;
     void start() override;
+    void stop() override;
+
 private:
     std::istream& in_;
     std::ostream& out_;
-    std::unique_ptr<std::thread> thread;
+
+    std::queue<std::unique_ptr<command>> commands_;
+
+    std::string command_line_;
+    std::vector<std::string> prev_command_lines_;
+    std::vector<std::string>::reverse_iterator rit_prev_command_lines_;
+
+    template<typename T, typename... Args>
+    std::unique_ptr<command> make_command(Args&... args) {
+        log("make_command");
+        return std::make_unique<T>(args...);
+    }
+
+private:
+    void input(int amountInputtedCodes);
+    void execute_requests();
+protected:
+    bool running;
 };
 
 } // namespace ui
-

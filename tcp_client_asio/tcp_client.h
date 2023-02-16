@@ -2,8 +2,67 @@
 
 #include <iostream>
 #include "boost/asio.hpp"
+#include "boost/thread/thread.hpp"
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/core/noncopyable.hpp>
 #include "../logger/logger.h"
+
+namespace detail {
+
+template <class T>
+struct task_wrapped {
+private:
+    T task_unwrapped_;
+public:
+    explicit task_wrapped(const T& f)
+        : task_unwrapped_(f)
+    {}
+    void operator()() const {
+        // Сброс прерывания.
+        try {
+            boost::this_thread::interruption_point();
+        } catch(const boost::thread_interrupted&){}
+
+        try {
+            // Выполнение задачи.
+            task_unwrapped_();
+        } catch (const std::exception& e) {
+            std::cerr<< "Exception: " << e.what() << '\n';
+        } catch (const boost::thread_interrupted&) {
+            std::cerr<< "Thread interrupted\n";
+        } catch (...) {
+            std::cerr<< "Unknown exception\n";
+        }
+    }
+};
+
+template <class T>
+task_wrapped<T> make_task_wrapped(const T& task_unwrapped) {
+    return task_wrapped<T>(task_unwrapped);
+}
+
+template <class Functor>
+struct timer_task {
+private:
+    std::shared_ptr<boost::asio::deadline_timer> timer_;
+    task_wrapped<Functor> task_;
+    std::ostream& err_;
+public:
+    explicit timer_task(std::shared_ptr<boost::asio::deadline_timer> timer,
+                        const Functor& task_unwrapped, std::ostream& err)
+        : timer_(std::move(timer)), task_(task_unwrapped), err_(err)
+    {}
+    void operator()(const boost::system::error_code& error) const {
+        if (!error) {
+            task_();
+        } else {
+            err_ << "timer_task: " << error << '\n' << std::flush;
+        }
+    }
+};
+
+} // namespace detail
+
 
 namespace tcp_client {
 
@@ -32,7 +91,7 @@ struct connection_with_data: boost::noncopyable {
     }
 };
 
-typedef std::unique_ptr<connection_with_data> connection_ptr;
+typedef std::shared_ptr<connection_with_data> connection_ptr;
 
 template <class T>
 struct task_wrapped_with_connection {
@@ -52,10 +111,12 @@ public:
     }
 };
 
+
 class tcp_client: public logger::logable
 {
 public:
     tcp_client(std::shared_ptr<logger::logger> logger);
+    ~tcp_client() override;
 
     static io_context_t& get_ios() {
         static io_context_t ios;
@@ -80,7 +141,7 @@ public:
     }
 
     template <class Functor>
-    void async_write_data(connection_ptr&& c, const Functor& f) {
+    void async_write_data(connection_ptr c, const Functor& f) {
         boost::asio::ip::tcp::socket& s = c->socket;
         std::vector<char>& d = c->data;
         boost::asio::async_write(
@@ -90,31 +151,17 @@ public:
         );
     }
 
-    template <class HandleRequest>
-    void request(std::vector<char>&& data, const HandleRequest& fRequest)
-    {
-        auto c = create_connection();
-
-        c->data = data;
-        async_write_data(std::move(c),[=](connection_ptr&& c, const boost::system::error_code& err){
-            if(err)
-            {
-                log("Error on sending data: " + err.message() + '\n');
-                return;
-            }
-            auto&& c_ = fRequest.on_send(std::move(c));
-            async_read_data_at_least(std::move(c_),[=](connection_ptr&& c, const boost::system::error_code& err)
-            {
-                if (err && err != boost::asio::error::eof) {
-                    log("Client error on receive: " + err.message() + '\n');
-                    return;
-                }
-
-                fRequest.on_read(std::move(c));
-            },
-            1,
-            1024);
-        });
+    template <class Time, class Functor>
+    std::shared_ptr<boost::asio::deadline_timer> run_delayed(Time duration_or_time, const Functor& f) {
+        std::shared_ptr<boost::asio::deadline_timer> timer(
+                    new boost::asio::deadline_timer(get_ios(), duration_or_time));
+        boost::asio::deadline_timer& timer_ref = *timer;
+        timer_ref.async_wait(detail::timer_task<Functor>(
+            timer,
+            f,
+            (*get_logger())())
+        );
+        return timer;
     }
 
     template <class Functor>

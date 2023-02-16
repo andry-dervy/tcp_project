@@ -5,8 +5,10 @@ project(tcp_server_asio LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Boost 1.71.0 REQUIRED COMPONENTS
-    program_options)
+find_package(Boost 1.74.0 REQUIRED COMPONENTS
+    program_options
+    serialization
+)
 
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
@@ -21,8 +23,15 @@ add_executable(tcp_server_asio
     ../logger/logger.cpp
     protocol.h
     protocol.cpp
+    application.h
+    application.cpp
+    requestprotocol.h
+    requestprotocol.cpp
 )
 
-target_link_libraries(tcp_server_asio Boost::program_options)
+target_link_libraries(tcp_server_asio
+    Boost::program_options
+    Boost::serialization
+)
 
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
