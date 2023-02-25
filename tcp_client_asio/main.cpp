@@ -24,12 +24,10 @@ void run_client(std::string address, int port)
 
     try
     {
-        auto ui_client = std::make_unique<user::ui_cli_client>(log, std::cin, std::cout);
+        auto ui_client = std::make_unique<user::ui_cli_client>(tcp_client::tcp_client::instance(), std::cin, std::cout);
 
-        auto client = std::make_unique<tcp_client::tcp_client>(log);
-        client->set_address(address);
-        client->set_port(port);
-        ui_client->set_tcp_client(std::move(client));
+        ui_client->set_address(address);
+        ui_client->set_port(port);
 
         ui_client->start();
     }

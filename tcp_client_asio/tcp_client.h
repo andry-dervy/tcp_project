@@ -63,7 +63,6 @@ public:
 
 } // namespace detail
 
-
 namespace tcp_client {
 
 using socket_t = boost::asio::ip::tcp::socket;
@@ -111,12 +110,14 @@ public:
     }
 };
 
-
-class tcp_client: public logger::logable
+class tcp_client
 {
 public:
-    tcp_client(std::shared_ptr<logger::logger> logger);
-    ~tcp_client() override;
+    static tcp_client& instance()
+    {
+        static tcp_client tcp_client_;
+        return tcp_client_;
+    }
 
     static io_context_t& get_ios() {
         static io_context_t ios;
@@ -133,11 +134,6 @@ public:
             boost::asio::ip::address_v4::from_string(address),
             port));
         return c;
-    }
-
-    connection_ptr create_connection()
-    {
-        return create_connection(address_, port_);
     }
 
     template <class Functor>
@@ -159,7 +155,7 @@ public:
         timer_ref.async_wait(detail::timer_task<Functor>(
             timer,
             f,
-            (*get_logger())())
+            logger_ != nullptr ? (*logger_)() : std::cerr)
         );
         return timer;
     }
@@ -193,15 +189,23 @@ public:
         );
     }
 
-    void set_address(std::string address) {address_ = address;}
-    void set_port(int port) {port_ = port;}
-
-    static void start();
-    static void stop();
+    const std::shared_ptr<logger::logger>& logger() const;
+    void set_logger(const std::shared_ptr<logger::logger> &logger);
 
 private:
-    std::string address_;
-    int port_;
+    tcp_client();
+    ~tcp_client();
+
+    tcp_client(const tcp_client& c) = delete;
+    tcp_client(const tcp_client&& c) = delete;
+    tcp_client& operator=(const tcp_client& c) = delete;
+    tcp_client& operator=(const tcp_client&& c) = delete;
+
+    std::shared_ptr<logger::logger> logger_;
+
+    void start();
+    void stop();
+    std::unique_ptr<std::thread> thread_ptr_;
 };
 
 } // namespace tcp_client

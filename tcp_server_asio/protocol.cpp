@@ -103,8 +103,12 @@ eCodeError get_files_command::execute(std::weak_ptr<tcp_server::tcp_connection> 
     if(con == nullptr) return eCodeError::FailedCheck;
 
     auto files = app_.get_files("");
+
     std::string resp;
-    for(auto& f : files) resp += f;
+    if(files.has_value())
+    {
+        for(auto& f : files.value()) resp += f.first;
+    }
 
     con->send(std::move(resp));
 

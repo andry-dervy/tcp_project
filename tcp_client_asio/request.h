@@ -17,12 +17,31 @@ enum class eStateRequest
     TimeOut
 };
 
-class request : public std::enable_shared_from_this<request>
+class addressable
+{
+public:
+    addressable(){}
+    addressable(std::string address, int port)
+        : address_(address), port_(port) {}
+    virtual ~addressable(){}
+
+    const std::string &address() const;
+    void set_address(const std::string &address);
+
+    int port() const;
+    void set_port(int port);
+
+private:
+    std::string address_;
+    int port_;
+};
+
+class request : public addressable, public std::enable_shared_from_this<request>
 {
 public:
     request(tcp_client::tcp_client& client)
         : client_(client),
-          log_(*client_.get_logger()),
+          log_(*client_.logger()),
           state_(eStateRequest::NotReadyToExecute) {}
     virtual ~request();
 

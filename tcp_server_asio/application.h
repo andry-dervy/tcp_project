@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 #include "../logger/logger.h"
 
 namespace app {
@@ -17,8 +18,8 @@ class file_manager_app: public logger::logable
 public:
     file_manager_app(std::shared_ptr<logger::logger> logger);
     void load_settings();
-    std::vector<std::string> get_files(std::string path);
-    std::vector<std::string> get_directories(std::string path);
+    std::optional<std::vector<std::pair<std::string, std::string>>> get_files(std::string path);
+    std::optional<std::vector<std::pair<std::string, std::string>>> get_directories(std::string path);
 
     eError get_error() const;
     std::string get_error_string() const;

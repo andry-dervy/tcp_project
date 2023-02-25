@@ -24,6 +24,7 @@ private:
     server_settings_dialog* server_settings_dialog_;
     std::shared_ptr<server_settings> server_settings_ptr_;
     std::shared_ptr<logger::file_logger> log_ptr_;
+    tcp_client::tcp_client& client_ref_;
 
     void setWidgets();
     void setMenuFile();

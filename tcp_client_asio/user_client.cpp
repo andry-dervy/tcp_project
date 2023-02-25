@@ -2,34 +2,30 @@
 
 namespace user {
 
-user_client::user_client(std::shared_ptr<logger::logger>& logger)
-    : logger::logable(logger)
-{}
+user_client::user_client(tcp_client::tcp_client& client)
+    : logger::logable(client.logger())
+    , client_ref_(client)
+{
+}
+
+user_client::user_client(tcp_client::tcp_client& client, std::string address, int port)
+    : request_client::addressable(address, port)
+    , logger::logable(client.logger())
+    , client_ref_(client)
+{
+}
 
 user_client::~user_client()
 {
-    if(thread)
-    {
-        tcp_client::tcp_client::stop();
-    }
-    //    out_ << " ui_cli_client destruction." << std::endl;
 }
 
 void user_client::add_request(std::shared_ptr<request_client::request> request_ptr)
 {
+    request_ptr->set_address(address());
+    request_ptr->set_port(port());
     requests_.insert(request_ptr);
     request_ptr->execute();
 }
 
-void tcp_client_start()
-{
-    tcp_client::tcp_client::start();
-}
-
-void user_client::start_thread_tcp_client()
-{
-    std::thread thread(tcp_client_start);
-    thread.detach();
-}
 
 } // namespace ui

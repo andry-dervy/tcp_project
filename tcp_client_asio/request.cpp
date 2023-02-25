@@ -2,6 +2,26 @@
 
 namespace request_client {
 
+const std::string &addressable::address() const
+{
+    return address_;
+}
+
+void addressable::set_address(const std::string& address)
+{
+    address_ = address;
+}
+
+int addressable::port() const
+{
+    return port_;
+}
+
+void addressable::set_port(int port)
+{
+    port_ = port;
+}
+
 request::~request()
 {
     log_("Destructor request");
@@ -10,7 +30,7 @@ request::~request()
 void request::execute()
 {
     try {
-        connection_ = client_.create_connection();
+        connection_ = tcp_client::tcp_client::create_connection(address(), port());
         set_state(eStateRequest::ReadyToSend);
     }  catch (boost::system::system_error& e) {
         log_() << "request::execute called exeption: " << e.what() << std::endl;
@@ -29,13 +49,10 @@ void request::execute()
         req->set_state(eStateRequest::WaitRead);
         req->client_.async_read_data_at_least(std::move(c),[req](tcp_client::connection_ptr&& c, const boost::system::error_code& err)
         {
-            //if (req->timer_) req->timer_->cancel();
             if (err && err != boost::asio::error::eof) {
                 req->log_("Client error on receive: " + err.message() + '\n');
                 return;
             }
-            //req->on_read(std::move(c->data));
-            //req->set_state(eStateRequest::Done);
             req->log_("mes_code: " + std::to_string(c->data[0]) + " " + std::to_string(c->data[1]) + '\n');
             req->log_("mes_length: " + std::to_string(c->data[2]) + " " + std::to_string(c->data[3]) + " " +
                     std::to_string(c->data[4]) + " " + std::to_string(c->data[5]) + '\n');

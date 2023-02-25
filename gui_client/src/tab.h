@@ -99,9 +99,8 @@ class FileManagerModel: public TreeModel
 public:
     FileManagerModel(const QStringList &data, QObject* parent = nullptr);
     ~FileManagerModel();
-    void addDataForView(QVector<QStringList>& data, int row, int col);
+    void addDataForView(QVector<QStringList>& data);
 private:
-//    QVector<QString> data_;
     mutable std::mutex mtx_set_data_;
 };
 
@@ -129,4 +128,5 @@ private:
 
 public:
     void get_list_files(std::string& path);
+    void get_list_dirs(std::string& path);
 };

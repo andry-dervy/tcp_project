@@ -11,7 +11,7 @@
 
 namespace user {
 
-class user_client;
+class ui_cli_client;
 
 class command
 {
@@ -23,10 +23,10 @@ public:
 class exit_command: public command
 {
 public:
-    exit_command(user_client& ui) : ui_(ui) {}
+    exit_command(ui_cli_client& ui) : ui_(ui) {}
     void execute() override;
 private:
-    user_client& ui_;
+    ui_cli_client& ui_;
 };
 
 class prev_cl_command: public command
@@ -42,10 +42,10 @@ private:
 class ui_cli_client: public user_client
 {
 public:
-    ui_cli_client(std::shared_ptr<logger::logger> logger, std::istream& in, std::ostream& out);
+    ui_cli_client(tcp_client::tcp_client& client, std::istream& in, std::ostream& out);
     ~ui_cli_client() override;
-    void start() override;
-    void stop() override;
+    void start();
+    void stop();
 
 private:
     std::istream& in_;

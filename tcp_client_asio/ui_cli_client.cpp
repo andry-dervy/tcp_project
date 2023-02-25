@@ -35,8 +35,8 @@ int _kbhit() {
 
 }
 
-ui_cli_client::ui_cli_client(std::shared_ptr<logger::logger> logger, std::istream& in, std::ostream& out)
-    : user_client(logger)
+ui_cli_client::ui_cli_client(tcp_client::tcp_client& client, std::istream& in, std::ostream& out)
+    : user_client(client)
     , in_(in), out_(out)
     , rit_prev_command_lines_(prev_command_lines_.rbegin())
     , running(false)
@@ -50,8 +50,6 @@ ui_cli_client::~ui_cli_client()
 
 void ui_cli_client::start()
 {
-    start_thread_tcp_client();
-
     running = true;
     while (running)
     {

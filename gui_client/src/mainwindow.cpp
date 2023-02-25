@@ -11,7 +11,10 @@ MainWindow::MainWindow(QWidget *parent)
     , settings_("app.ini", QSettings::IniFormat)
     , server_settings_dialog_(nullptr)
     , log_ptr_(std::make_shared<logger::file_logger>("log_error.txt"))
+    , client_ref_(tcp_client::tcp_client::instance())
 {
+    client_ref_.set_logger(log_ptr_);
+
     resize(WIDTH, HEIGH);
     setMenuFile();
     setMdi();
@@ -111,7 +114,8 @@ void MainWindow::add_tab_client()
     addSubWindow(fileManager);
 
     std::string path = "";
-    //fileManager->get_list_files(path);
+    fileManager->get_list_dirs(path);
+    fileManager->get_list_files(path);
 
 }
 

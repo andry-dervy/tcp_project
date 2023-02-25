@@ -173,7 +173,7 @@ FileManagerModel::FileManagerModel(const QStringList &data, QObject* parent)
 
 FileManagerModel::~FileManagerModel() {}
 
-void FileManagerModel::addDataForView(QVector<QStringList>& data, int row, int col)
+void FileManagerModel::addDataForView(QVector<QStringList>& data)
 {
     std::lock_guard lock{mtx_set_data_};
 
@@ -219,7 +219,7 @@ void FileManagerTab::setWidget()
 
     QVector<QStringList> v;
     v.append(QStringList() << ".." << "");
-    model_->addDataForView(v,0,0);
+    model_->addDataForView(v);
 
     listView_->setModel(model_);
 }
@@ -246,6 +246,28 @@ void FileManagerTab::get_list_files(std::string& path)
     }
 }
 
+void FileManagerTab::get_list_dirs(std::string &path)
+{
+    assert(api_client_ptr_ != nullptr);
+
+    try
+    {
+        auto req_get_dirs = api_client_ptr_->make_request<user::get_dirs_r>(*api_client_ptr_);
+        req_get_dirs->set_path(path);
+        req_get_dirs->set_file_manager_model(model_);
+        req_get_dirs->convert_to_data();
+        api_client_ptr_->add_request(req_get_dirs);
+    }
+    catch (std::exception& e)
+    {
+        statusBarLabel_->setText(e.what());
+    }
+    catch (...)
+    {
+        statusBarLabel_->setText("Неожиданное исключение.");
+    }
+}
+
 void FileManagerTab::run_client(std::string address, int port)
 {
     assert(log_ptr_ != nullptr);
@@ -255,12 +277,7 @@ void FileManagerTab::run_client(std::string address, int port)
 
     try
     {
-        api_client_ptr_ = std::make_unique<user::api_client>(log_ptr_);
-        auto client = std::make_unique<tcp_client::tcp_client>(log_ptr_);
-        client->set_address(address);
-        client->set_port(port);
-        api_client_ptr_->set_tcp_client(std::move(client));
-        api_client_ptr_->start();
+        api_client_ptr_ = std::make_unique<user::api_client>(tcp_client::tcp_client::instance(), address, port);
         statusBarLabel_->setText(tr("Client is started."));
     }
     catch (std::exception& e)

@@ -79,6 +79,92 @@ void get_list_files_request::set_path(const std::string& path)
 {
     path_ = path;
 }
+
+std::vector<char> get_list_dirs_request::to_sequence()
+{
+    std::stringstream ss;
+    boost::archive::text_oarchive oa{ss};
+    oa << this;
+    auto str = ss.str();
+    return std::vector<char>(str.begin(), str.end());
+}
+
+void get_list_dirs_request::from_sequence(const std::vector<char> &sequential)
+{
+    std::stringstream ss {std::string(sequential.begin(),sequential.end())};
+
+    boost::archive::text_iarchive ia{ss};
+    get_list_dirs_request* req = nullptr;
+    try {
+        ia >> req;
+    }  catch (boost::archive::archive_exception& e) {
+        if(req) delete req;
+        throw e;
+    }
+    path_ = req->path_;
+    delete req;
+}
+
+std::string get_list_dirs_request::path() const
+{
+    return path_;
+}
+
+void get_list_dirs_request::set_path(const std::string &path)
+{
+    path_ = path;
+}
+//---------------------------------------------------------------
+std::optional<std::vector<char>> get_list_files_executor::execute(std::vector<char>& sequential)
+{
+    get_list_files_request req;
+
+    try {
+        req.from_sequence(sequential);
+    } catch (boost::archive::archive_exception& e) {
+        log("get_list_files_executor::execute: " + std::string(e.what()));
+        return std::nullopt;
+    }
+
+    std::optional<std::vector<std::pair<std::string, std::string>>> opt;
+    try {
+        opt = fm_app_.get_files(req.path());
+    } catch (std::exception& e) {
+        log("get_files std::exception: " + std::string(e.what()));
+        return std::nullopt;
+    }
+
+    log("get_files ret.");
+    std::vector<std::map<std::string, std::string>> lst_p_name_type;
+    get_list_files_answer ans;
+    if(!opt.has_value())
+    {
+        log("File path is not valid.");
+    }
+    else
+    {
+        log("Number files: " + std::to_string(opt->size()));
+
+        for(const auto& p: opt.value())
+        {
+            std::map<std::string, std::string> m;
+            m.insert({"name", p.first});
+            m.insert({"type", p.second});
+            lst_p_name_type.push_back(std::move(m));
+        }
+        ans.set_files(lst_p_name_type);
+    }
+
+    ans.set_error(fm_app_.get_error());
+    ans.set_error_string(fm_app_.get_error_string());
+
+    message mes;
+    mes.code_.vUI16 = static_cast<uint16_t>(eTypeMessage::get_list_files_answer);
+    mes.data_ = ans.to_sequence();
+    mes.length_.vUI32 = mes.data_.size();
+
+    return std::make_optional(mes.to_sequence());
+}
 //---------------------------------------------------------------
 app::eError answer::error() const
 {
@@ -125,45 +211,102 @@ void get_list_files_answer::from_sequence(const std::vector<char>& sequential)
     delete ans;
 }
 
-std::vector<std::string> get_list_files_answer::files() const
-{
-    return files_;
-}
-
-void get_list_files_answer::set_files(const std::vector<std::string>& files)
+void get_list_files_answer::set_files(const std::vector<std::map<std::string, std::string>>& files)
 {
     files_ = files;
 }
 
-std::vector<std::string> get_list_files_answer::get_files() const
+std::vector<std::map<std::string, std::string>> get_list_files_answer::get_files() const
 {
     return files_;
 }
-//---------------------------------------------------------------
-std::optional<std::vector<char>> get_list_files_executor::execute(std::vector<char>& sequential)
+
+std::vector<char> get_list_dirs_answer::to_sequence()
 {
-    get_list_files_request req;
+    std::stringstream ss;
+    boost::archive::text_oarchive oa{ss};
+    oa << this;
+    auto str = ss.str();
+    return std::vector<char>(str.begin(), str.end());
+}
+
+void get_list_dirs_answer::from_sequence(const std::vector<char> &sequential)
+{
+    std::stringstream ss { std::string(sequential.begin(),sequential.end()) };
+    boost::archive::text_iarchive ia{ss};
+
+    get_list_dirs_answer* ans = nullptr;
+    try {
+        ia >> ans;
+    }  catch (boost::archive::archive_exception& e) {
+        if(ans) delete ans;
+        throw e;
+    }
+    dirs_ = ans->dirs_;
+    delete ans;
+}
+
+void get_list_dirs_answer::set_dirs(const std::vector<std::map<std::string, std::string> > &dirs)
+{
+    dirs_ = dirs;
+}
+
+std::vector<std::map<std::string, std::string>> get_list_dirs_answer::get_dirs() const
+{
+    return dirs_;
+}
+
+std::optional<std::vector<char> > get_list_dirs_executor::execute(std::vector<char> &sequential)
+{
+    get_list_dirs_request req;
 
     try {
         req.from_sequence(sequential);
     } catch (boost::archive::archive_exception& e) {
-        log("get_list_files_executor::execute: " + std::string(e.what()));
+        log("get_list_dirs_executor::execute: " + std::string(e.what()));
         return std::nullopt;
     }
-    auto list_files = fm_app_.get_files(req.path());
-    log("number files: " + std::to_string(list_files.size()));
-    get_list_files_answer ans;
-    ans.set_files(list_files);
+
+    std::optional<std::vector<std::pair<std::string, std::string>>> opt;
+    try {
+        opt = fm_app_.get_directories(req.path());
+    } catch (std::exception& e) {
+        log("get_directories: std::exception: " + std::string(e.what()));
+        return std::nullopt;
+    }
+
+    log("get_dirs ret.");
+    std::vector<std::map<std::string, std::string>> lst_p_name_type;
+    get_list_dirs_answer ans;
+    if(!opt.has_value())
+    {
+        log("Directories path is not valid.");
+    }
+    else
+    {
+        log("Number dirs: " + std::to_string(opt->size()));
+
+        for(const auto& p: opt.value())
+        {
+            std::map<std::string, std::string> m;
+            m.insert({"name", p.first});
+            m.insert({"type", p.second});
+            lst_p_name_type.push_back(std::move(m));
+        }
+        ans.set_dirs(lst_p_name_type);
+    }
+
     ans.set_error(fm_app_.get_error());
     ans.set_error_string(fm_app_.get_error_string());
 
     message mes;
-    mes.code_.vUI16 = static_cast<uint16_t>(eTypeMessage::get_list_files_answer);
+    mes.code_.vUI16 = static_cast<uint16_t>(eTypeMessage::get_list_dirs_answer);
     mes.data_ = ans.to_sequence();
     mes.length_.vUI32 = mes.data_.size();
 
     return std::make_optional(mes.to_sequence());
 }
+
 //---------------------------------------------------------------
 request_protocol::request_protocol(std::shared_ptr<app::file_manager_app>& app, std::shared_ptr<logger::logger> logger)
     : logger::logable(logger), app_(app)
@@ -270,6 +413,11 @@ void request_protocol::fill_request_map()
         auto ptr = std::make_unique<get_list_files_executor>(*app_, get_logger());
         executors_.insert({eTypeMessage::get_list_files_request, std::move(ptr)});
     }
+    // add get_list_dirs request executor
+    {
+        auto ptr = std::make_unique<get_list_dirs_executor>(*app_, get_logger());
+        executors_.insert({eTypeMessage::get_list_dirs_request, std::move(ptr)});
+    }
 }
 
 void request_protocol::set_app(std::shared_ptr<app::file_manager_app>& app)
@@ -277,9 +425,6 @@ void request_protocol::set_app(std::shared_ptr<app::file_manager_app>& app)
     app_ = app;
 }
 
-std::string get_list_files_key::get_key_string() const
-{
-    return key_string_;
-}
+
 
 } // namespace protocol
